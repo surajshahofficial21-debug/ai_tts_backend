@@ -1,4 +1,6 @@
 flask
+flask-cors
+gtts
 requests
 gunicorn
 groq
