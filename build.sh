@@ -1,15 +1,13 @@
-#!/usr/bin/env bash
-set -o errexit  # अगर कोई error आए तो build रुके
+#!/bin/bash
+set -e
 
-# Dependencies
-apt-get update && apt-get install -y wget unzip
+# Fetch latest Piper release dynamically
+LATEST_URL=$(curl -s https://api.github.com/repos/rhasspy/piper/releases/latest \
+  | grep browser_download_url \
+  | grep linux_x86_64.tar.gz \
+  | cut -d '"' -f 4)
 
-# Piper binary download and install
-wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz
-tar -xvzf piper_linux_x86_64.tar.gz
-mv piper /usr/local/bin/piper
-chmod +x /usr/local/bin/piper
-
-# Voice model download
-mkdir -p voices
-wget https://github.com/rhasspy/piper/releases/download/v1.2.0/en_US-libritts-high.onnx -O voices/en_US-libritts-high.onnx
+echo "Downloading Piper from: $LATEST_URL"
+curl -L -o piper.tar.gz "$LATEST_URL"
+tar -xvzf piper.tar.gz
+chmod +x piper
