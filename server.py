@@ -1,35 +1,34 @@
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file
 import subprocess
-import os
+import io
+import wave
 
 app = Flask(__name__)
 
-BASE_DIR = os.path.dirname(__file__)
-PIPER_PATH = os.path.join(BASE_DIR, "bin", "piper")
-MODEL_PATH = os.path.join(BASE_DIR, "model.onnx")
-OUTPUT_FILE = os.path.join(BASE_DIR, "output.wav")
-
-@app.route("/tts", methods=["POST"])
+@app.route('/tts', methods=['POST'])
 def tts():
-    try:
-        data = request.get_json()
-        text = data.get("text", "")
-        if not text:
-            return jsonify({"error": "No text provided"}), 400
+    data = request.get_json()
+    text = data.get("text", "")
 
-        # Run Piper from ./bin/piper
-        subprocess.run([
-            PIPER_PATH,
-            "--model", MODEL_PATH,
-            "--output", OUTPUT_FILE
-        ], input=text.encode("utf-8"), check=True)
+    # Run Piper to get raw audio (16-bit PCM)
+    cmd = ["piper", "--model", "voices/en_US-libritts-high.onnx", "--output_raw"]
+    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    raw_audio, _ = process.communicate(input=text.encode("utf-8"))
 
-        return send_file(OUTPUT_FILE, mimetype="audio/wav")
+    # Convert raw PCM to proper WAV
+    wav_buffer = io.BytesIO()
+    with wave.open(wav_buffer, "wb") as wf:
+        wf.setnchannels(1)         # mono
+        wf.setsampwidth(2)         # 16-bit
+        wf.setframerate(22050)     # sample rate
+        wf.writeframes(raw_audio)
 
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Piper failed: {e}"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    wav_buffer.seek(0)
+    return send_file(wav_buffer, mimetype="audio/wav", as_attachment=True, download_name="output.wav")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@app.route('/')
+def home():
+    return "TTS server running!"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
