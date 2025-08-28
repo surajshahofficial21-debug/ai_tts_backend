@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-set -e
+set -o errexit  # अगर कोई error आए तो build रुके
 
-echo "=== Creating bin directory ==="
-mkdir -p bin
+# Dependencies
+apt-get update && apt-get install -y wget unzip
 
-echo "=== Downloading Piper binary ==="
-curl -L https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64 \
-  -o bin/piper
+# Piper binary download and install
+wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz
+tar -xvzf piper_linux_x86_64.tar.gz
+mv piper /usr/local/bin/piper
+chmod +x /usr/local/bin/piper
 
-echo "=== Making Piper executable ==="
-chmod +x bin/piper
-
-echo "=== Installing Python dependencies ==="
-pip install -r requirements.txt
+# Voice model download
+mkdir -p voices
+wget https://github.com/rhasspy/piper/releases/download/v1.2.0/en_US-libritts-high.onnx -O voices/en_US-libritts-high.onnx
