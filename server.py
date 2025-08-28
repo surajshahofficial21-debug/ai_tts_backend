@@ -1,42 +1,48 @@
-from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
+from flask import Flask, request, send_file, jsonify
 import subprocess
-import uuid
+import traceback
+import os
 
 app = Flask(__name__)
-CORS(app)
 
-# Root route for Render health check
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "TTS API is running"}), 200
-
-# Text-to-Speech route
 @app.route("/tts", methods=["POST"])
 def tts():
     try:
-        data = request.json
-        text = data.get("text", "")
+        data = request.get_json(force=True)
+        text = data.get("text", "").strip()
+        print(f"[DEBUG] Received text: {text}", flush=True)
 
-        if not text.strip():
+        if not text:
             return jsonify({"error": "No text provided"}), 400
 
-        # Temporary audio file
-        filename = f"{uuid.uuid4()}.wav"
+        # Output wav file
+        output_path = "output.wav"
+
+        # Call Piper TTS (change path/model if needed)
+        cmd = [
+            "piper", 
+            "--model", "en_US-amy-medium", 
+            "--output_file", output_path
+        ]
+        print(f"[DEBUG] Running command: {' '.join(cmd)}", flush=True)
         
-        # Run Piper TTS via subprocess
-        subprocess.run(
-            ["piper", "--model", "en_US-amy-medium", "--output_file", filename],
-            input=text.encode("utf-8"),
-            check=True
-        )
+        # Run Piper with input text
+        process = subprocess.run(cmd, input=text.encode(), capture_output=True)
+        
+        if process.returncode != 0:
+            print("[ERROR] Piper failed", flush=True)
+            print(process.stderr.decode(), flush=True)
+            return jsonify({"error": "Piper TTS failed"}), 500
 
-        return send_file(filename, mimetype="audio/wav")
+        print("[DEBUG] Piper completed successfully", flush=True)
 
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Piper failed: {e}"}), 500
+        # Send wav back to client
+        return send_file(output_path, mimetype="audio/wav")
+
     except Exception as e:
+        print("[ERROR] Exception in /tts:", e, flush=True)
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=10000, debug=True)
