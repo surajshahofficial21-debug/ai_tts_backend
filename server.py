@@ -1,48 +1,35 @@
 from flask import Flask, request, send_file, jsonify
 import subprocess
-import traceback
 import os
 
 app = Flask(__name__)
 
+BASE_DIR = os.path.dirname(__file__)
+PIPER_PATH = os.path.join(BASE_DIR, "bin", "piper")
+MODEL_PATH = os.path.join(BASE_DIR, "model.onnx")
+OUTPUT_FILE = os.path.join(BASE_DIR, "output.wav")
+
 @app.route("/tts", methods=["POST"])
 def tts():
     try:
-        data = request.get_json(force=True)
-        text = data.get("text", "").strip()
-        print(f"[DEBUG] Received text: {text}", flush=True)
-
+        data = request.get_json()
+        text = data.get("text", "")
         if not text:
             return jsonify({"error": "No text provided"}), 400
 
-        # Output wav file
-        output_path = "output.wav"
+        # Run Piper from ./bin/piper
+        subprocess.run([
+            PIPER_PATH,
+            "--model", MODEL_PATH,
+            "--output", OUTPUT_FILE
+        ], input=text.encode("utf-8"), check=True)
 
-        # Call Piper TTS (change path/model if needed)
-        cmd = [
-            "piper", 
-            "--model", "en_US-amy-medium", 
-            "--output_file", output_path
-        ]
-        print(f"[DEBUG] Running command: {' '.join(cmd)}", flush=True)
-        
-        # Run Piper with input text
-        process = subprocess.run(cmd, input=text.encode(), capture_output=True)
-        
-        if process.returncode != 0:
-            print("[ERROR] Piper failed", flush=True)
-            print(process.stderr.decode(), flush=True)
-            return jsonify({"error": "Piper TTS failed"}), 500
+        return send_file(OUTPUT_FILE, mimetype="audio/wav")
 
-        print("[DEBUG] Piper completed successfully", flush=True)
-
-        # Send wav back to client
-        return send_file(output_path, mimetype="audio/wav")
-
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Piper failed: {e}"}), 500
     except Exception as e:
-        print("[ERROR] Exception in /tts:", e, flush=True)
-        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
